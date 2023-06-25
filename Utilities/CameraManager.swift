@@ -8,6 +8,11 @@
 import AVFoundation
 
 public final class CameraManager {
+    private enum CameraPosition: Int {
+        case back = 1
+        case front  = 2
+    }
+    
     private enum SessionStatus {
         case success
         case failed
@@ -15,6 +20,8 @@ public final class CameraManager {
     }
     
     private var captureSessionStatus: SessionStatus = .success
+    private var cameraPosition: CameraPosition = .front
+    
     
     //MARK: Dependencies
     private let captureSession = AVCaptureSession()
@@ -28,10 +35,10 @@ public final class CameraManager {
     private func requestCameraAuthorization() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-           return
+            return
         case .notDetermined:
             requestCameraAccess()
-        default: // Access is denied by user or is restricted by parental controll
+        default: // Access is denied by user or it is restricted by parental controll
             self.captureSessionStatus = .denied
         }
     }
@@ -58,8 +65,8 @@ public final class CameraManager {
         return deviceDiscoverySession.devices
     }
     
-    private func addDeviceInputToCaptureSession() {
-        guard let device = searchForVideoCaptureDevices()?.first(where: { $0.position.rawValue == 1 }) else {
+    private func addDeviceInputToCaptureSession(camera position: CameraPosition) {
+        guard let device = searchForVideoCaptureDevices()?.first(where: { $0.position.rawValue == position.rawValue }) else {
             captureSessionStatus = .failed
             return
         }
@@ -82,21 +89,17 @@ public final class CameraManager {
         captureSession.addOutput(videoOutput)
     }
     
-    func setSampleBufferDelegate(sampleBufferDelegate: AVCaptureVideoDataOutputSampleBufferDelegate, queue: DispatchQueue) {
-        videoOutput.setSampleBufferDelegate(sampleBufferDelegate, queue: queue)
-    }
-    
     private func configureCaptureSession() {
         guard captureSessionStatus == .success else {
             captureSessionStatus = .failed
             return
         }
         
-        addDeviceInputToCaptureSession()
+        addDeviceInputToCaptureSession(camera: .front)
         addVideoOutputToCaptureSession()
         
         captureSession.beginConfiguration()
-        captureSession.sessionPreset = .iFrame1280x720
+        captureSession.sessionPreset = .high
         
         captureSession.connections.first?.videoOrientation = .portrait
         
@@ -104,12 +107,44 @@ public final class CameraManager {
         
     }
     
+    func returnCaptureSession() -> AVCaptureSession? {
+        guard captureSessionStatus == .success else { return nil }
+        
+        return captureSession
+    }
+    
     private func startSession() {
         guard captureSessionStatus == .success else { return }
         captureSession.startRunning()
     }
     
-    init() {
+    private func removeDeviceInputFromCaptureSession(){
+        captureSession.beginConfiguration()
+        
+        guard let input = captureSession.inputs.first else {
+            return
+        }
+        
+        captureSession.removeInput(input)
+        captureSession.commitConfiguration()
+    }
+    
+    func toogleCamera() {
+        switch cameraPosition {
+        case .front:
+            self.cameraPosition = .back
+            removeDeviceInputFromCaptureSession()
+            addDeviceInputToCaptureSession(camera: cameraPosition)
+        case .back:
+            self.cameraPosition = .front
+            removeDeviceInputFromCaptureSession()
+            addDeviceInputToCaptureSession(camera: cameraPosition)
+        }
+    }
+    
+    static let shared = CameraManager()
+    
+    private init() {
         captureSessionQueue.async {
             self.requestCameraAuthorization()
             self.configureCaptureSession()

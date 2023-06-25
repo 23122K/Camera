@@ -8,12 +8,14 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var previewProvider = PreviewManager()
     var body: some View {
-        VStack {
-            FrameView(image: previewProvider.image)
+        ZStack{
+            CameraPreviewHolder()
+                .ignoresSafeArea()
         }
-        .padding()
+        .onTapGesture(count: 2) {
+            CameraManager.shared.toogleCamera()
+        }
     }
 }
 
