@@ -13,8 +13,6 @@
 		6FAB71E62A473F700097C33A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6FAB71E52A473F700097C33A /* Assets.xcassets */; };
 		6FAB71E92A473F700097C33A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6FAB71E82A473F700097C33A /* Preview Assets.xcassets */; };
 		6FAB71F12A473FAC0097C33A /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FAB71F02A473FAC0097C33A /* CameraManager.swift */; };
-		6FAB71F62A47583B0097C33A /* PreviewManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FAB71F52A47583B0097C33A /* PreviewManager.swift */; };
-		6FAB71FA2A47586E0097C33A /* FrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FAB71F92A47586E0097C33A /* FrameView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,8 +23,6 @@
 		6FAB71E52A473F700097C33A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6FAB71E82A473F700097C33A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		6FAB71F02A473FAC0097C33A /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
-		6FAB71F52A47583B0097C33A /* PreviewManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewManager.swift; sourceTree = "<group>"; };
-		6FAB71F92A47586E0097C33A /* FrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,8 +76,6 @@
 			isa = PBXGroup;
 			children = (
 				6FAB71F02A473FAC0097C33A /* CameraManager.swift */,
-				6FAB71F52A47583B0097C33A /* PreviewManager.swift */,
-				6FAB71F92A47586E0097C33A /* FrameView.swift */,
 				6F6BE02B2A48AE0C00A63108 /* CameraPreviewView.swift */,
 			);
 			path = Utilities;
@@ -157,11 +151,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6FAB71F62A47583B0097C33A /* PreviewManager.swift in Sources */,
 				6FAB71E42A473F6F0097C33A /* ContentView.swift in Sources */,
 				6FAB71E22A473F6F0097C33A /* CameraApp.swift in Sources */,
 				6F6BE02C2A48AE0C00A63108 /* CameraPreviewView.swift in Sources */,
-				6FAB71FA2A47586E0097C33A /* FrameView.swift in Sources */,
 				6FAB71F12A473FAC0097C33A /* CameraManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

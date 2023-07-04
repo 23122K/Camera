@@ -43,6 +43,5 @@ class CameraPreviewView: UIView {
 //Swift wrapper
 struct CameraPreviewHolder: UIViewRepresentable {
     func makeUIView(context: UIViewRepresentableContext<CameraPreviewHolder>) -> CameraPreviewView { CameraPreviewView() }
-    
     func updateUIView(_ uiView: UIViewType, context: UIViewRepresentableContext<CameraPreviewHolder>) {}
 }
