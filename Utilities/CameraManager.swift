@@ -172,12 +172,9 @@ public final class CameraManager: NSObject, AVCapturePhotoCaptureDelegate {
     }
     
     public func photoOutput(_ output: AVCapturePhotoOutput, willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
-        print("willBeginCaptureFor")
     }
     
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        print("didFinishProcessingPhoto")
-        print("photo")
     }
     
     func toogleFocus() {
