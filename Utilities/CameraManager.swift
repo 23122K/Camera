@@ -7,30 +7,32 @@
 
 import AVFoundation
 
-public final class CameraManager {
-
+public final class CameraManager: NSObject, AVCapturePhotoCaptureDelegate {
+    
     //Enums to better handle event that can occure during the configuration process
     private enum SessionStatus {
         case success
         case notAuthorized
         case configurationField
     }
-
+    
     private var captureSessionConfigurationStatus: SessionStatus = .success
     private var cameraPosition: AVCaptureDevice.Position = .unspecified
     private var torchMode: AVCaptureDevice.TorchMode = .off
     private var flashMode: AVCaptureDevice.FlashMode = .off
-    private var focusMode: AVCaptureDevice.FocusMode = .locked
-    private var exposureMode: AVCaptureDevice.ExposureMode = .locked
+    private var focusMode: AVCaptureDevice.FocusMode = .autoFocus
+    private var exposureMode: AVCaptureDevice.ExposureMode = .autoExpose
     
     //MARK: Dependencies
     private let captureSession = AVCaptureSession()
+    private let photoOutput = AVCapturePhotoOutput()
     private let videoOutput = AVCaptureVideoDataOutput()
     private var input: AVCaptureDeviceInput!
+    private var captureConnection: AVCaptureConnection!
     
     //MARK: Dispatch queues
     private let captureSessionQueue = DispatchQueue(label: "capture.session")
-    private let videoOutputQueue = DispatchQueue(label: "video.output", attributes: .initiallyInactive)
+    private let outputQueue = DispatchQueue(label: "output")
     
     private func requestCameraAuthorization() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -42,7 +44,7 @@ public final class CameraManager {
             self.captureSessionConfigurationStatus = .configurationField
         }
     }
-
+    
     private func requestCameraAccess() {
         self.captureSessionQueue.suspend() //Suspending capture.session queue as it wont be used if user did not grant us camera access
         
@@ -71,16 +73,19 @@ public final class CameraManager {
             return
         }
         
+        print(input.device.deviceType)
         captureSession.addInput(input)
     }
     
-    private func addVideoOutputToCaptureSession(output: AVCaptureOutput){
+    private func addOutputToCaptureSession(output: AVCaptureOutput){
         guard captureSession.canAddOutput(output) else {
             captureSessionConfigurationStatus = .configurationField
+            print("Failed to add output")
             return
         }
         
-        captureSession.addOutput(videoOutput)
+        print(output.connections.count)
+        captureSession.addOutput(output)
     }
     
     private func configureCaptureSession() {
@@ -90,19 +95,18 @@ public final class CameraManager {
         }
         
         guard let device = returnAvailableVideoCaptureDevices(position: cameraPosition)?.first else {
+            captureSessionConfigurationStatus = .configurationField
             return
         }
         
-        addDeviceInputToCaptureSession(device: device)
-        addVideoOutputToCaptureSession(output: videoOutput)
-        
-        
         captureSession.beginConfiguration()
         captureSession.sessionPreset = .high
-        captureSession.connections.first?.videoOrientation = .portrait
+        
+        addDeviceInputToCaptureSession(device: device)
+        addOutputToCaptureSession(output: photoOutput)
         
         captureSession.commitConfiguration()
-        
+        print(photoOutput.connections.count)
     }
     
     func returnCaptureSession() -> AVCaptureSession? {
@@ -160,11 +164,28 @@ public final class CameraManager {
         }
     }
     
+    
+    //MARK: - Picture
+    func takePicture() {
+        let photoSettings = AVCapturePhotoSettings()
+        self.photoOutput.capturePhoto(with: photoSettings, delegate: self)
+    }
+    
+    public func photoOutput(_ output: AVCapturePhotoOutput, willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
+        print("willBeginCaptureFor")
+    }
+    
+    public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        print("didFinishProcessingPhoto")
+        print("photo")
+    }
+    
     func toogleFocus() {
         captureSessionQueue.async { [self] in
             print(input.device.focusMode.rawValue)
             do { try input.device.lockForConfiguration()
                 input.device.focusMode = .autoFocus
+                input.device.exposureMode = .autoExpose
                 input.device.unlockForConfiguration()
             } catch {
                 print("error")
@@ -181,6 +202,9 @@ public final class CameraManager {
                 input.device.focusPointOfInterest = devicePoint
                 input.device.exposurePointOfInterest = devicePoint
                 print(devicePoint)
+                
+                focusMode = .locked
+                exposureMode = .locked
                 
                 input.device.focusMode = focusMode
                 input.device.exposureMode = exposureMode
@@ -221,17 +245,19 @@ public final class CameraManager {
     
     //MARK: - Delegate to recive sample buffer
     func setVideoOutputDelegate(with delegate: AVCaptureVideoDataOutputSampleBufferDelegate) {
-        videoOutput.setSampleBufferDelegate(delegate, queue: videoOutputQueue)
+        videoOutput.setSampleBufferDelegate(delegate, queue: outputQueue)
     }
     
     static let shared = CameraManager()
     
-    private init() {
+    private override init() {
+        super.init()
+        
         captureSessionQueue.async {
             self.requestCameraAuthorization()
             self.configureCaptureSession()
             self.startSession()
-            
+            print(self.captureSessionConfigurationStatus)
         }
     }
 }

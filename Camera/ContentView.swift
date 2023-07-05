@@ -8,18 +8,21 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State var location = CGPoint()
+    @State var cricleLocation = CGPoint()
     var body: some View {
         ZStack{
-            CameraPreviewHolder()
-                .ignoresSafeArea()
-                .onTapGesture { location in
-                    self.location = location
-                    CameraManager.shared.focus(at: location)
-                }
+            GeometryReader { g in
+                CameraPreviewHolder()
+                    .ignoresSafeArea()
+                    .onTapGesture { location in
+                        let point = CGPoint(x: location.x / g.size.width, y: location.y / g.size.height)
+                        cricleLocation = location
+                        CameraManager.shared.focus(at: point)
+                    }
+            }
             Circle()
                 .frame(width: 20, height: 20)
-                .position(location)
+                .position(cricleLocation)
             VStack{
                 HStack{
                     Spacer()
@@ -41,12 +44,28 @@ struct ContentView: View {
                 }
                 .padding()
                 Spacer()
+                
+                
+        
+                Button(action: {
+                    CameraManager.shared.takePicture()
+                }, label: {
+                    ZStack{
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 65, height: 65)
+                        Circle()
+                            .stroke(Color.white, lineWidth: 2)
+                            .frame(width: 75, height: 75)
+                    }
+                })
             }
             .padding()
         }
-        .onTapGesture(count: 2) {
+        .simultaneousGesture(TapGesture(count: 2).onEnded {
             CameraManager.shared.toogleCamera()
-        }
+        })
+        
     }
 }
 
