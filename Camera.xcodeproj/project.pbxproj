@@ -287,6 +287,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Its needed";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mic is needed";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "To save photos";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Needed to save video photo";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -321,6 +324,9 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Its needed";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Mic is needed";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "To save photos";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Needed to save video photo";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

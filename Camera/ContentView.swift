@@ -17,7 +17,7 @@ struct ContentView: View {
                     .onTapGesture { location in
                         let point = CGPoint(x: location.x / g.size.width, y: location.y / g.size.height)
                         cricleLocation = location
-                        CameraManager.shared.focus(at: point)
+                        CameraManager.shared.focusAndExposure(at: point)
                     }
             }
             Circle()
@@ -34,7 +34,7 @@ struct ContentView: View {
                     Image(systemName: "plus")
                         .font(.system(size: 30))
                         .onTapGesture {
-                            CameraManager.shared.setZoom()
+                            CameraManager.shared.zoomIn()
                         }
                     Image(systemName: "circle")
                         .font(.system(size: 30))
@@ -48,11 +48,16 @@ struct ContentView: View {
                 
         
                 Button(action: {
-                    CameraManager.shared.takePicture()
+                    switch(CameraManager.shared.isRecording) {
+                    case true:
+                        CameraManager.shared.stopRecording()
+                    case false:
+                        CameraManager.shared.startRecording()
+                    }
                 }, label: {
                     ZStack{
                         Circle()
-                            .fill(.white)
+                            .fill(CameraManager.shared.isRecording ? .red : .white)
                             .frame(width: 65, height: 65)
                         Circle()
                             .stroke(Color.white, lineWidth: 2)
