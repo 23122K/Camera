@@ -9,68 +9,90 @@ import SwiftUI
 
 struct ContentView: View {
     @State var cricleLocation = CGPoint()
+    @ObservedObject private var cameraManager = CameraManager.shared
+    
     var body: some View {
         ZStack{
             GeometryReader { g in
-                CameraPreviewHolder()
+                CameraPreview(session: cameraManager.returnCaptureSession())
                     .ignoresSafeArea()
                     .onTapGesture { location in
                         let point = CGPoint(x: location.x / g.size.width, y: location.y / g.size.height)
                         cricleLocation = location
-                        CameraManager.shared.focusAndExposure(at: point)
+                        cameraManager.focusAndExposure(at: point)
                     }
             }
             Circle()
                 .frame(width: 20, height: 20)
                 .position(cricleLocation)
+            
             VStack{
                 HStack{
                     Spacer()
                     Image(systemName: "bolt")
                         .font(.system(size: 30))
                         .onTapGesture {
-                            CameraManager.shared.toogleFlash()
+                            cameraManager.toogleTorch()
                         }
                     Image(systemName: "plus")
                         .font(.system(size: 30))
                         .onTapGesture {
-                            CameraManager.shared.zoomIn()
+                            cameraManager.zoomIn()
                         }
                     Image(systemName: "circle")
                         .font(.system(size: 30))
                         .onTapGesture {
-                            CameraManager.shared.toogleFocus()
+                            cameraManager.toogleFocus()
                         }
                 }
                 .padding()
                 Spacer()
                 
-                
-        
                 Button(action: {
-                    switch(CameraManager.shared.isRecording) {
+                    // ignore
+                }) {
+                    Circle()
+                        .stroke(lineWidth: 5)
+                        .foregroundColor(cameraManager.isRecording ? Color.red.opacity(0.7) : Color.white.opacity(0.8))
+                        .frame(width: 75, height: 75)
+                        .padding(.bottom, 25)
+                }
+                .simultaneousGesture(
+                    LongPressGesture()
+                        .onEnded { _ in
+                            print("Recording")
+                            cameraManager.startRecording()
+                        }
+                )
+                .simultaneousGesture(TapGesture().onEnded {
+                    switch cameraManager.isRecording {
                     case true:
-                        CameraManager.shared.stopRecording()
+                        cameraManager.stopRecording()
                     case false:
-                        CameraManager.shared.startRecording()
-                    }
-                }, label: {
-                    ZStack{
-                        Circle()
-                            .fill(CameraManager.shared.isRecording ? .red : .white)
-                            .frame(width: 65, height: 65)
-                        Circle()
-                            .stroke(Color.white, lineWidth: 2)
-                            .frame(width: 75, height: 75)
+                        cameraManager.takePicture()
                     }
                 })
+                
+//                Button(action: {
+//                    switch(cameraManager.isRecording){
+//                    case false:
+//                        cameraManager.startRecording()
+//                    case true:
+//                        cameraManager.stopRecording()
+//                    }
+//                }, label: {
+//                    ZStack{
+//                        Circle()
+//                            .stroke(lineWidth: 5)
+//                            .fill(.white)
+//                            .frame(width: 75, height: 75)
+//                    }
+//                })
             }
-            .padding()
+            .simultaneousGesture(TapGesture(count: 2).onEnded {
+                cameraManager.toogleCamera()
+            })
         }
-        .simultaneousGesture(TapGesture(count: 2).onEnded {
-            CameraManager.shared.toogleCamera()
-        })
-        
     }
 }
 

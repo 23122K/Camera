@@ -1,47 +1,34 @@
-//
-//  AVVideoPlayerView.swift
-//  SwiftUICameraView
-//
-//  Created by Sajjad Sarkoobi on 14.01.2023.
-//
-
+import AVFoundation
 import SwiftUI
-import AVKit
 
-class CameraPreviewView: UIView {
-    init() { super.init(frame: .zero) }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
-    override class var layerClass: AnyClass {
-        AVCaptureVideoPreviewLayer.self
-    }
-    
-    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
-        return layer as! AVCaptureVideoPreviewLayer
-    }
-    
-    override func didMoveToSuperview() {
-        super.didMoveToSuperview()
+public struct CameraPreview: UIViewRepresentable {
+    public class VideoPreviewView: UIView {
+        public override class var layerClass: AnyClass {
+            AVCaptureVideoPreviewLayer.self
+        }
         
-        if nil != self.superview {
-            guard let captureSession = CameraManager.shared.returnCaptureSession() else { return }
-            self.videoPreviewLayer.session = captureSession
-            self.videoPreviewLayer.videoGravity = .resizeAspectFill
-            //Setting the videoOrientation if needed
-            //self.videoPreviewLayer.connection?.videoOrientation = .landscapeRight
-        } else {
-            self.videoPreviewLayer.session = nil
-            self.videoPreviewLayer.removeFromSuperlayer()
+        var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+            return layer as! AVCaptureVideoPreviewLayer
         }
     }
-}
-
-
-//Swift wrapper
-struct CameraPreviewHolder: UIViewRepresentable {
-    func makeUIView(context: UIViewRepresentableContext<CameraPreviewHolder>) -> CameraPreviewView { CameraPreviewView() }
-    func updateUIView(_ uiView: UIViewType, context: UIViewRepresentableContext<CameraPreviewHolder>) {}
+    
+    public let session: AVCaptureSession
+    
+    public init(session: AVCaptureSession) {
+        self.session = session
+    }
+    
+    public func makeUIView(context: Context) -> VideoPreviewView {
+        let view = VideoPreviewView()
+        view.backgroundColor = .black
+        view.videoPreviewLayer.cornerRadius = 0
+        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        view.videoPreviewLayer.connection?.videoOrientation = .portrait
+        return view
+    }
+    
+    public func updateUIView(_ uiView: VideoPreviewView, context: Context) {
+        
+    }
 }
