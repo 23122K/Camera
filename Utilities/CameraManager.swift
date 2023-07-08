@@ -21,7 +21,7 @@ public final class CameraManager: NSObject, ObservableObject {
         case video = 1
     }
     
-    @Published public var captureMode: CaptureMode = .photo
+    @Published public var captureMode: CaptureMode = .video
     
     @Published public var isPhotoLibraryAccessGranted = true
     @Published public var isMicrophoneAccessGranted = true
@@ -31,6 +31,7 @@ public final class CameraManager: NSObject, ObservableObject {
     
     @Published public var isTorchActivated = false
     @Published public var isFlashActivated = false
+    @Published public var isFocused = false
     @Published public var zoomFactor = 1.0
     
     private var captureSessionConfigurationStatus: SessionStatus = .success
@@ -218,7 +219,7 @@ public final class CameraManager: NSObject, ObservableObject {
         addVideoInputDeviceToCaptureSession(device: videoDevice)
         addAudioInputDeviceToCaptureSession(device: audioDevice)
         
-        addOutputToCaptureSession(output: photoOutput) //Changes camera mode 
+        addOutputToCaptureSession(output: videoOutput) //Changes camera mode 
         
         captureSession.commitConfiguration()
     }
@@ -262,12 +263,29 @@ public final class CameraManager: NSObject, ObservableObject {
     
     
     //MARK: - Functions to interact with CameraManager (Camera)
-    func zoomIn(){
+    public enum ZoomMode {
+        case zoomIn
+        case zoomOut
+        case resetZoom
+    }
+    
+    func zoom(mode: ZoomMode){
         do {
             try videoInput.device.lockForConfiguration()
-            if videoInput.device.videoZoomFactor < videoInput.device.maxAvailableVideoZoomFactor {
-                videoInput.device.videoZoomFactor += 0.5
-                zoomFactor += 0.5
+            switch mode {
+            case .zoomIn:
+                if videoInput.device.videoZoomFactor + 0.1 < videoInput.device.maxAvailableVideoZoomFactor {
+                    videoInput.device.videoZoomFactor += 0.1
+                    zoomFactor += 0.1
+                }
+            case .zoomOut:
+                if videoInput.device.videoZoomFactor - 0.1 > videoInput.device.minAvailableVideoZoomFactor  {
+                    videoInput.device.videoZoomFactor -= 0.1
+                    zoomFactor -= 0.1
+                }
+            case .resetZoom:
+                videoInput.device.videoZoomFactor = 1.0
+                zoomFactor = 1.0
             }
             videoInput.device.unlockForConfiguration()
         } catch {
@@ -290,18 +308,6 @@ public final class CameraManager: NSObject, ObservableObject {
         captureSession.commitConfiguration()
     }
     
-    //Sets camera zoom factor into entry one (1.0)
-    func resetZoom() {
-        do {
-            try videoInput.device.lockForConfiguration()
-            videoInput.device.videoZoomFactor = 1.0
-            zoomFactor = 1.0
-            videoInput.device.unlockForConfiguration()
-        } catch {
-            print(error)
-        }
-    }
-    
     func toogleTorch() {
         guard videoInput.device.hasTorch && videoInput.device.isTorchAvailable else { return }
         do {
@@ -310,15 +316,19 @@ public final class CameraManager: NSObject, ObservableObject {
             switch(torchMode) {
             case .on:
                 isTorchActivated = false
+                torchMode = .off
                 videoInput.device.torchMode = .off
             case .off:
                 isTorchActivated = true
+                torchMode = .on
                 videoInput.device.torchMode = .on
             case .auto:
                 isTorchActivated = false
+                torchMode = .off
                 videoInput.device.torchMode = .off
             @unknown default:
                 isTorchActivated = false
+                torchMode = .off
                 videoInput.device.torchMode = .off
             }
             videoInput.device.unlockForConfiguration()
@@ -345,6 +355,7 @@ public final class CameraManager: NSObject, ObservableObject {
     
     func toogleFocus() {
         do { try videoInput.device.lockForConfiguration()
+            isFocused = false
             switch(cameraPosition) {
             case .front:
                 videoInput.device.exposureMode = .continuousAutoExposure
@@ -393,6 +404,7 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     func focusAndExposure(at point: CGPoint) {
+        isFocused = true
         exposure(at: point)
         focus(at: point)
     }
