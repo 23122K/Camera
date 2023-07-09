@@ -136,20 +136,17 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     //MARK: - Input devices available on user device
-    private func returnAvailableVideoCaptureDevices(position: AVCaptureDevice.Position) -> Array<AVCaptureDevice>? {
+    private var supportedDevices: Array<AVCaptureDevice.DeviceType> = [.builtInDualCamera, .builtInDualWideCamera, .builtInTripleCamera, .builtInWideAngleCamera, .builtInMicrophone]
+    private var returnAvailableVideoCaptureDevices: Array<AVCaptureDevice>? {
         guard captureSessionConfigurationStatus == .success else { return nil }
         
-        let deviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInDualCamera, .builtInDualWideCamera, .builtInTripleCamera, .builtInUltraWideCamera, .builtInWideAngleCamera], mediaType: .video, position: position)
-        
-        return deviceDiscoverySession.devices
+        return AVCaptureDevice.DiscoverySession(deviceTypes: supportedDevices, mediaType: .video, position: cameraPosition).devices
     }
     
-    private func returnAvailableAudioCaptureDevices(position: AVCaptureDevice.Position) -> Array<AVCaptureDevice>? {
+    private var returnAvailableAudioCaptureDevices: Array<AVCaptureDevice>? {
         guard captureSessionConfigurationStatus == .success else { return nil }
         
-        let deviceDiscoverySession = AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInMicrophone], mediaType: .audio, position: .unspecified)
-        
-        return deviceDiscoverySession.devices
+        return AVCaptureDevice.DiscoverySession(deviceTypes: supportedDevices, mediaType: .audio, position: cameraPosition).devices
     }
     
     //MARK: - Input devices
@@ -203,12 +200,12 @@ public final class CameraManager: NSObject, ObservableObject {
             return
         }
         
-        guard let videoDevice = returnAvailableVideoCaptureDevices(position: cameraPosition)?.first else {
+        guard let videoDevice = returnAvailableVideoCaptureDevices?.first(where: { $0.deviceType == .builtInDualCamera }) else {
             captureSessionConfigurationStatus = .configurationField
             return
         }
         
-        guard let audioDevice = returnAvailableAudioCaptureDevices(position: cameraPosition)?.first else {
+        guard let audioDevice = returnAvailableAudioCaptureDevices?.first else {
             captureSessionConfigurationStatus = .configurationField
             return
         }
@@ -258,9 +255,17 @@ public final class CameraManager: NSObject, ObservableObject {
     //MARK: - Picture
     func takePicture() {
         if captureMode == .video { toogleCaptureMode() }
+        let photoSettings = AVCapturePhotoSettings()
+        
+        switch isFlashActivated {
+        case true:
+            photoSettings.flashMode = flashMode
+        case false:
+            photoSettings.flashMode = flashMode
+        }
+        
         photoOutput.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
     }
-    
     
     //MARK: - Functions to interact with CameraManager (Camera)
     public enum ZoomMode {
@@ -269,7 +274,7 @@ public final class CameraManager: NSObject, ObservableObject {
         case resetZoom
     }
     
-    func zoom(mode: ZoomMode){
+    func zoom(_ mode: ZoomMode){
         do {
             try videoInput.device.lockForConfiguration()
             switch mode {
@@ -308,12 +313,17 @@ public final class CameraManager: NSObject, ObservableObject {
         captureSession.commitConfiguration()
     }
     
+    func toogleFlashAndTorch() {
+        toogleFlash()
+        toogleTorch()
+    }
+    
     func toogleTorch() {
         guard videoInput.device.hasTorch && videoInput.device.isTorchAvailable else { return }
         do {
             try videoInput.device.lockForConfiguration()
             
-            switch(torchMode) {
+            switch torchMode {
             case .on:
                 isTorchActivated = false
                 torchMode = .off
@@ -337,21 +347,31 @@ public final class CameraManager: NSObject, ObservableObject {
         }
     }
     
-//    func toogleFlash() {
-//        guard videoInput.device.hasFlash && videoInput.device.isFlashAvailable else { return }
-//        captureSessionQueue.async { [self] in
-//            switch(flashMode) {
-//            case .on:
-//                photoSettings = AVCapturePhotoSettings()
-//                photoSettings.flashMode = .off
-//            case .off:
-//                photoSettings = AVCapturePhotoSettings()
-//                photoSettings.flashMode = .on
-//            default:
-//                return
-//            }
-//        }
-//    }
+    func toogleFlash() {
+        guard videoInput.device.hasFlash && videoInput.device.isFlashAvailable else { return }
+        do {
+            try videoInput.device.lockForConfiguration()
+            
+            switch flashMode {
+            case .off:
+                isFlashActivated = true
+                flashMode = .on
+            case .on:
+                isFlashActivated = false
+                flashMode = .off
+            case .auto:
+                isFlashActivated = false
+                flashMode = .off
+            @unknown default:
+                isFlashActivated = false
+                flashMode = .off
+            }
+            
+            videoInput.device.unlockForConfiguration()
+        } catch {
+            print(error)
+        }
+    }
     
     func toogleFocus() {
         do { try videoInput.device.lockForConfiguration()
@@ -413,7 +433,7 @@ public final class CameraManager: NSObject, ObservableObject {
         switch cameraPosition {
         case .front:
             self.cameraPosition = .back
-            guard let device = returnAvailableVideoCaptureDevices(position: cameraPosition)?.first else {
+            guard let device = returnAvailableVideoCaptureDevices?.first else {
                 self.cameraPosition = .front
                 return
             }
@@ -422,7 +442,7 @@ public final class CameraManager: NSObject, ObservableObject {
             addVideoInputDeviceToCaptureSession(device: device)
         case .back, .unspecified:
             self.cameraPosition = .front
-            guard let device = returnAvailableVideoCaptureDevices(position: cameraPosition)?.first else {
+            guard let device = returnAvailableVideoCaptureDevices?.first else {
                 self.cameraPosition = .back
                 return
             }

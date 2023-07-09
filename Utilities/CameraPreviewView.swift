@@ -17,11 +17,11 @@ public struct CameraPreview: UIViewRepresentable {
     private var tapIndicator: UIView?
     
     func zoomIn() {
-        cameraManager.zoom(mode: .zoomIn)
+        cameraManager.zoom(.zoomIn)
     }
     
     func zoomOut() {
-        cameraManager.zoom(mode: .zoomOut)
+        cameraManager.zoom(.zoomOut)
     }
     
     func tapToFocusAndExpose(point: CGPoint) {
@@ -42,13 +42,11 @@ public struct CameraPreview: UIViewRepresentable {
         view.videoPreviewLayer.connection?.videoOrientation = .portrait
         
         // Add pinch gesture recognizer for zooming
-        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator,
-                                                    action: #selector(Coordinator.handlePinchGesture(_:)))
+        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinchGesture(_:)))
         view.addGestureRecognizer(pinchGesture)
         
         // Add tap gesture recognizer for tap to focus and expose
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator,
-                                                 action: #selector(Coordinator.handleTapGesture(_:)))
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapGesture(_:)))
         view.addGestureRecognizer(tapGesture)
         
         return view
@@ -109,6 +107,28 @@ public struct CameraPreview: UIViewRepresentable {
             }) { (_) in
                 indicatorView.removeFromSuperview()
             }
+        }
+    }
+}
+
+extension AVCaptureVideoOrientation {
+    init?(deviceOrientation: UIDeviceOrientation) {
+        switch deviceOrientation {
+        case .portrait: self = .portrait
+        case .portraitUpsideDown: self = .portraitUpsideDown
+        case .landscapeLeft: self = .landscapeRight
+        case .landscapeRight: self = .landscapeLeft
+        default: return nil
+        }
+    }
+    
+    init?(interfaceOrientation: UIInterfaceOrientation) {
+        switch interfaceOrientation {
+        case .portrait: self = .portrait
+        case .portraitUpsideDown: self = .portraitUpsideDown
+        case .landscapeLeft: self = .landscapeLeft
+        case .landscapeRight: self = .landscapeRight
+        default: return nil
         }
     }
 }
