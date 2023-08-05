@@ -7,9 +7,15 @@
 
 import AVFoundation
 import Photos
-
+import SwiftUI
 public final class CameraManager: NSObject, ObservableObject {
+    
     //Enums to better handle event that can occure during the configuration process
+    public enum cameraManagerError: Error {
+        case noCameraFound
+        case noMicrophoneFound
+    }
+    
     private enum SessionStatus {
         case success
         case notAuthorized
@@ -27,10 +33,11 @@ public final class CameraManager: NSObject, ObservableObject {
     @Published public var isMicrophoneAccessGranted = true
     @Published public var isCameraAccesGranted = true
     
+    @Published public var hasFinishedProccessing = false
     @Published public var isRecording = false
-    
     @Published public var isTorchActivated = false
     @Published public var isFlashActivated = false
+    
     @Published public var isFocused = false
     @Published public var zoomFactor = 1.0
     
@@ -52,6 +59,9 @@ public final class CameraManager: NSObject, ObservableObject {
     private var audioInput: AVCaptureDeviceInput!
     
     public var captureSessionPreview: AVCaptureVideoPreviewLayer!
+    
+    //MARK: Capture Results paths
+    public var recordedVideoPath: URL?
     
     //MARK: Dispatch queues
     private let captureSessionQueue = DispatchQueue(label: "capture.session")
@@ -225,12 +235,14 @@ public final class CameraManager: NSObject, ObservableObject {
         return captureSession
     }
     
-    private func startSession() {
+    func startSession() {
         guard captureSessionConfigurationStatus == .success else { return }
-        captureSession.startRunning()
+        captureSessionQueue.async {
+            self.captureSession.startRunning()
+        }
     }
     
-    private func stopSession() {
+    func stopSession() {
         if captureSession.isRunning { captureSession.stopRunning() }
     }
     
@@ -453,12 +465,7 @@ public final class CameraManager: NSObject, ObservableObject {
             print("Unknown capture position")
         }
     }
-    
-    //MARK: - Delegate to recive sample buffer
-    func setVideoDataOutputDelegate(with delegate: AVCaptureVideoDataOutputSampleBufferDelegate) {
-        videoDataOutput.setSampleBufferDelegate(delegate, queue: outputQueue)
-    }
-    
+        
     static let shared = CameraManager()
     
     private override init() {
@@ -468,16 +475,17 @@ public final class CameraManager: NSObject, ObservableObject {
             self.requestCameraAuthorization()
             self.requestMicrophoneAuthorization()
             self.configureCaptureSession()
-            self.startSession()
             
-            print(self.captureSessionConfigurationStatus)
+            self.startSession()
         }
     }
 }
 
 extension CameraManager: AVCapturePhotoCaptureDelegate {
+    
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         guard let photoData = photo.fileDataRepresentation() else { return }
+        stopSession()
         
         requestPhotoLibraryAuthorization()
         
@@ -497,6 +505,8 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
     }
 }
 
+
+//MARK: - Video recording output handeling
 extension CameraManager: AVCaptureFileOutputRecordingDelegate {
     private func clean(movie path: String) {
         guard FileManager.default.fileExists(atPath: path) else {
@@ -516,7 +526,11 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
             return
         }
         
+        hasFinishedProccessing = true
+        recordedVideoPath = outputFileURL
+        
         requestPhotoLibraryAuthorization()
+        
         guard isPhotoLibraryAccessGranted else {
             clean(movie: outputFileURL.absoluteString)
             return
