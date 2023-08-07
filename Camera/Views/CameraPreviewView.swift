@@ -12,42 +12,36 @@ public struct CameraPreview: UIViewRepresentable {
         }
     }
     
-    public let cameraManager: CameraManager
-    
     private var tapIndicator: UIView?
-    
-    func zoomIn() {
-        cameraManager.zoom(.zoomIn)
-    }
-    
-    func zoomOut() {
-        cameraManager.zoom(.zoomOut)
-    }
-    
-    func tapToFocusAndExpose(point: CGPoint) {
-        cameraManager.focusAndExposure(at: point)
-        showTapIndicator(at: point)
-    }
-    
-    public init(cameraManager: CameraManager) {
-        self.cameraManager = cameraManager
-    }
+//
+//    func zoomIn() {
+//        cameraManager.zoom(.zoomIn)
+//    }
+//
+//    func zoomOut() {
+//        cameraManager.zoom(.zoomOut)
+//    }
+//
+//    func tapToFocusAndExpose(point: CGPoint) {
+//        cameraManager.focusAndExposure(at: point)
+//        showTapIndicator(at: point)
+//    }
     
     public func makeUIView(context: Context) -> VideoPreviewView {
         let view = VideoPreviewView()
         view.backgroundColor = .black
         view.videoPreviewLayer.cornerRadius = 0
-        view.videoPreviewLayer.session = cameraManager.returnCaptureSession()
+        view.videoPreviewLayer.session = CameraManager.shared.returnCaptureSession()
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
         view.videoPreviewLayer.connection?.videoOrientation = .portrait
         
-        // Add pinch gesture recognizer for zooming
-        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinchGesture(_:)))
-        view.addGestureRecognizer(pinchGesture)
-        
-        // Add tap gesture recognizer for tap to focus and expose
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapGesture(_:)))
-        view.addGestureRecognizer(tapGesture)
+//        // Add pinch gesture recognizer for zooming
+//        let pinchGesture = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinchGesture(_:)))
+//        view.addGestureRecognizer(pinchGesture)
+//        
+//        // Add tap gesture recognizer for tap to focus and expose
+//        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapGesture(_:)))
+//        view.addGestureRecognizer(tapGesture)
         
         return view
     }
@@ -67,18 +61,18 @@ public struct CameraPreview: UIViewRepresentable {
             self.parent = parent
         }
         
-        @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
-            if gesture.scale < 1.0 {
-                parent.zoomOut()
-            } else {
-                parent.zoomIn()
-            }
-        }
-        
-        @objc func handleTapGesture(_ gesture: UITapGestureRecognizer) {
-            let point = gesture.location(in: gesture.view)
-            parent.tapToFocusAndExpose(point: point)
-        }
+//        @objc func handlePinchGesture(_ gesture: UIPinchGestureRecognizer) {
+//            if gesture.scale < 1.0 {
+//                parent.zoomOut()
+//            } else {
+//                parent.zoomIn()
+//            }
+//        }
+//
+//        @objc func handleTapGesture(_ gesture: UITapGestureRecognizer) {
+//            let point = gesture.location(in: gesture.view)
+//            parent.tapToFocusAndExpose(point: point)
+//        }
     }
     
     private func showTapIndicator(at point: CGPoint) {

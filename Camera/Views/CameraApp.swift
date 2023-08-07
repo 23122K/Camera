@@ -9,9 +9,10 @@ import SwiftUI
 
 @main
 struct CameraApp: App {
+    @StateObject private var cameraManagerViewModel = CameraManagerViewModel()
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(cameraManagerViewModel: cameraManagerViewModel)
         }
     }
 }

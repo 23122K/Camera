@@ -8,64 +8,100 @@
 import AVFoundation
 import Photos
 import SwiftUI
+
+protocol CameraManagerDelegate: AnyObject {
+    func photoLibraryAccessDidChange(granted: Bool)
+    func microphoneAccessDidChange(granted: Bool)
+    func cameraAccessDidChange(granted: Bool)
+    func captureModeDidChange(to mode: CaptureMode)
+    func processingOutputDidFinish(success: Bool)
+    func torchDidChangeActivation(to active: Bool)
+    func flashDidChangeActivation(to active: Bool)
+    func recordingStatusDidChange(isRecording: Bool)
+    func focusStatusDidChange(isFocused: Bool)
+    func zoomFactorDidChange(to factor: Double)
+}
+
 public final class CameraManager: NSObject, ObservableObject {
-    
-    //Enums to better handle event that can occure during the configuration process
-    public enum cameraManagerError: Error {
-        case noCameraFound
-        case noMicrophoneFound
-    }
-    
-    private enum SessionStatus {
-        case success
-        case notAuthorized
-        case configurationField
-    }
-    
-    public enum CaptureMode: Int {
-        case photo = 0
-        case video = 1
-    }
-    
-    @Published public var captureMode: CaptureMode = .video
-    
-    @Published public var isPhotoLibraryAccessGranted = true
-    @Published public var isMicrophoneAccessGranted = true
-    @Published public var isCameraAccesGranted = true
-    
-    @Published public var hasFinishedProccessing = false
-    @Published public var isRecording = false
-    @Published public var isTorchActivated = false
-    @Published public var isFlashActivated = false
-    
-    @Published public var isFocused = false
-    @Published public var zoomFactor = 1.0
-    
+
     private var captureSessionConfigurationStatus: SessionStatus = .success
     
+    private var captureMode: CaptureMode = .video {
+        didSet {
+            self.delegate?.captureModeDidChange(to: captureMode)
+        }
+    }
+    private var isRecording: Bool = false {
+        didSet {
+            self.delegate?.recordingStatusDidChange(isRecording: isRecording)
+        }
+    }
+    
     private var cameraPosition: AVCaptureDevice.Position = .unspecified
+
     private var exposureMode: AVCaptureDevice.ExposureMode = .continuousAutoExposure
     private var focusMode: AVCaptureDevice.FocusMode = .continuousAutoFocus
-    private var torchMode: AVCaptureDevice.TorchMode = .off
-    private var flashMode: AVCaptureDevice.FlashMode = .off
+    private var torchMode: AVCaptureDevice.TorchMode = .off {
+        didSet {
+            switch torchMode {
+            case .off, .auto:
+                self.delegate?.torchDidChangeActivation(to: false)
+            case .on:
+                self.delegate?.torchDidChangeActivation(to: true)
+            @unknown default:
+                self.delegate?.torchDidChangeActivation(to: false)
+            }
+        }
+    }
+    private var flashMode: AVCaptureDevice.FlashMode = .off {
+        didSet {
+            switch flashMode {
+            case .off, .auto:
+                self.delegate?.flashDidChangeActivation(to: false)
+            case .on:
+                self.delegate?.flashDidChangeActivation(to: true)
+            @unknown default:
+                self.delegate?.flashDidChangeActivation(to: false)
+            }
+        }
+    }
+    
+    private var isPhotoLibraryAccessGranted = true {
+        didSet {
+            self.delegate?.photoLibraryAccessDidChange(granted: isPhotoLibraryAccessGranted)
+        }
+    }
+    private var isMicrophoneAccessGranted = true {
+        didSet {
+            self.delegate?.microphoneAccessDidChange(granted: isMicrophoneAccessGranted)
+        }
+    }
+    private var isCameraAccessGranted = true {
+        didSet {
+            self.delegate?.cameraAccessDidChange(granted: isCameraAccessGranted)
+        }
+    }
     
     //MARK: Dependencies
     private let captureSession = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
     private let videoOutput = AVCaptureMovieFileOutput()
-    private let videoDataOutput = AVCaptureVideoDataOutput()
     
     private var videoInput: AVCaptureDeviceInput!
     private var audioInput: AVCaptureDeviceInput!
     
     public var captureSessionPreview: AVCaptureVideoPreviewLayer!
     
-    //MARK: Capture Results paths
-    public var recordedVideoPath: URL?
+    //MARK: Captured resources
+    public var capturedPhotoData: Data?
+    public var capturedVideoURL: URL?
     
     //MARK: Dispatch queues
     private let captureSessionQueue = DispatchQueue(label: "capture.session")
     private let outputQueue = DispatchQueue(label: "output")
+    
+    //MARK: Delegate
+    weak var delegate: CameraManagerDelegate?
     
     //MARK: Microphone access authorization
     private func requestMicrophoneAuthorization() {
@@ -88,7 +124,6 @@ public final class CameraManager: NSObject, ObservableObject {
                 return
             }
             
-            self.isMicrophoneAccessGranted = true
         }
     }
     
@@ -100,7 +135,7 @@ public final class CameraManager: NSObject, ObservableObject {
         case .notDetermined:
             requestCameraAccess()
         default: // Access has been denied by user or it is restricted by parental controll
-            isCameraAccesGranted = false
+            isCameraAccessGranted = false
             self.captureSessionConfigurationStatus = .configurationField
         }
     }
@@ -110,12 +145,11 @@ public final class CameraManager: NSObject, ObservableObject {
         
         AVCaptureDevice.requestAccess(for: .video) { accessGranted in
             guard accessGranted else {
-                self.isCameraAccesGranted = false
+                self.isCameraAccessGranted = false
                 self.captureSessionConfigurationStatus = .notAuthorized
                 return
             }
             
-            self.isCameraAccesGranted = true
             self.captureSessionQueue.resume() // capture.session queue is resumed as user granted camera access
         }
     }
@@ -140,8 +174,6 @@ public final class CameraManager: NSObject, ObservableObject {
                 self.captureSessionConfigurationStatus = .notAuthorized
                 return
             }
-            
-            self.isPhotoLibraryAccessGranted = true
         }
     }
     
@@ -246,6 +278,14 @@ public final class CameraManager: NSObject, ObservableObject {
         if captureSession.isRunning { captureSession.stopRunning() }
     }
     
+    
+    //Starts capture session
+    func retake() {
+        startSession()
+        delegate?.processingOutputDidFinish(success: false)
+    }
+    
+    
     //MARK: - Video
     private var documentDirectory: URL {
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -255,27 +295,16 @@ public final class CameraManager: NSObject, ObservableObject {
     func startRecording() {
         if captureMode == .photo { toogleCaptureMode() }
         let url = documentDirectory.appending(component: "tmp.mov")
-        isRecording.toggle()
         videoOutput.startRecording(to: url, recordingDelegate: self)
     }
     
     func stopRecording() {
-        isRecording.toggle()
         videoOutput.stopRecording()
     }
     
     //MARK: - Picture
     func takePicture() {
         if captureMode == .video { toogleCaptureMode() }
-        let photoSettings = AVCapturePhotoSettings()
-        
-        switch isFlashActivated {
-        case true:
-            photoSettings.flashMode = flashMode
-        case false:
-            photoSettings.flashMode = flashMode
-        }
-        
         photoOutput.capturePhoto(with: AVCapturePhotoSettings(), delegate: self)
     }
     
@@ -289,21 +318,19 @@ public final class CameraManager: NSObject, ObservableObject {
     func zoom(_ mode: ZoomMode){
         do {
             try videoInput.device.lockForConfiguration()
+            
             switch mode {
             case .zoomIn:
-                if videoInput.device.videoZoomFactor + 0.1 < videoInput.device.maxAvailableVideoZoomFactor {
-                    videoInput.device.videoZoomFactor += 0.1
-                    zoomFactor += 0.1
-                }
+                if videoInput.device.videoZoomFactor + 0.1 < videoInput.device.maxAvailableVideoZoomFactor { videoInput.device.videoZoomFactor += 0.1 }
             case .zoomOut:
-                if videoInput.device.videoZoomFactor - 0.1 > videoInput.device.minAvailableVideoZoomFactor  {
-                    videoInput.device.videoZoomFactor -= 0.1
-                    zoomFactor -= 0.1
-                }
+                if videoInput.device.videoZoomFactor - 0.1 > videoInput.device.minAvailableVideoZoomFactor  { videoInput.device.videoZoomFactor -= 0.1 }
             case .resetZoom:
                 videoInput.device.videoZoomFactor = 1.0
-                zoomFactor = 1.0
             }
+            
+            let zoomFactor = Double(videoInput.device.videoZoomFactor)
+            delegate?.zoomFactorDidChange(to: zoomFactor)
+            
             videoInput.device.unlockForConfiguration()
         } catch {
             print(error)
@@ -337,21 +364,17 @@ public final class CameraManager: NSObject, ObservableObject {
             
             switch torchMode {
             case .on:
-                isTorchActivated = false
                 torchMode = .off
-                videoInput.device.torchMode = .off
+                videoInput.device.torchMode = self.torchMode
             case .off:
-                isTorchActivated = true
                 torchMode = .on
-                videoInput.device.torchMode = .on
+                videoInput.device.torchMode = self.torchMode
             case .auto:
-                isTorchActivated = false
                 torchMode = .off
-                videoInput.device.torchMode = .off
+                videoInput.device.torchMode = self.torchMode
             @unknown default:
-                isTorchActivated = false
                 torchMode = .off
-                videoInput.device.torchMode = .off
+                videoInput.device.torchMode = self.torchMode
             }
             videoInput.device.unlockForConfiguration()
         } catch {
@@ -366,16 +389,12 @@ public final class CameraManager: NSObject, ObservableObject {
             
             switch flashMode {
             case .off:
-                isFlashActivated = true
                 flashMode = .on
             case .on:
-                isFlashActivated = false
                 flashMode = .off
             case .auto:
-                isFlashActivated = false
                 flashMode = .off
             @unknown default:
-                isFlashActivated = false
                 flashMode = .off
             }
             
@@ -386,8 +405,9 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     func toogleFocus() {
-        do { try videoInput.device.lockForConfiguration()
-            isFocused = false
+        do {
+            try videoInput.device.lockForConfiguration()
+            
             switch(cameraPosition) {
             case .front:
                 videoInput.device.exposureMode = .continuousAutoExposure
@@ -397,12 +417,13 @@ public final class CameraManager: NSObject, ObservableObject {
             @unknown default:
                 videoInput.device.exposureMode = .continuousAutoExposure
             }
+            
         } catch {
             print("Could not lock device from configuration ")
         }
     }
     
-    //Disable it if user did not grant permissions as it can be nil
+    //To do
     func exposure(at point: CGPoint) {
         guard videoInput.device.isExposurePointOfInterestSupported && videoInput.device.isExposureModeSupported(exposureMode) else {
             print("Exposure mode is not avialable on current device")
@@ -419,6 +440,7 @@ public final class CameraManager: NSObject, ObservableObject {
         }
     }
     
+    //To Do:
     func focus(at point: CGPoint) {
         guard videoInput.device.isFocusPointOfInterestSupported && videoInput.device.isFocusModeSupported(focusMode) else {
             print("Focus mode is not avialable on current device")
@@ -436,12 +458,11 @@ public final class CameraManager: NSObject, ObservableObject {
     }
     
     func focusAndExposure(at point: CGPoint) {
-        isFocused = true
         exposure(at: point)
         focus(at: point)
     }
     
-    func toogleCamera() {
+    func flipCamera() {
         switch cameraPosition {
         case .front:
             self.cameraPosition = .back
@@ -465,7 +486,57 @@ public final class CameraManager: NSObject, ObservableObject {
             print("Unknown capture position")
         }
     }
+    
+    private func clean() {
+        switch captureMode {
+        case .photo:
+            capturedPhotoData = nil
+        case .video:
+            guard let path = capturedVideoURL?.absoluteString, FileManager.default.fileExists(atPath: path) else { return }
+            
+            try? FileManager.default.removeItem(atPath: path)
+            capturedVideoURL = nil
+        }
+    }
+    
+    //MARK: - Persisting captured output depending capture mode
+    public func persistCapturedResource() {
         
+        requestPhotoLibraryAuthorization()
+        guard isPhotoLibraryAccessGranted else { return }
+        
+        switch captureMode {
+        case .photo:
+            guard let data = capturedPhotoData else { return }
+            PHPhotoLibrary.shared().performChanges({
+                let options = PHAssetResourceCreationOptions()
+                let creationRequest = PHAssetCreationRequest.forAsset()
+                creationRequest.addResource(with: .photo, data: data, options: options)
+            }, completionHandler: { success, error in
+                if !success {
+                    print("AVCam couldn't save the movie to your photo library: \(String(describing: error))")
+                }
+                
+            })
+        case .video:
+            guard let fileURL = capturedVideoURL else { return }
+            PHPhotoLibrary.shared().performChanges({
+                let options = PHAssetResourceCreationOptions()
+                options.shouldMoveFile = true
+                let creationRequest = PHAssetCreationRequest.forAsset()
+                creationRequest.addResource(with: .video, fileURL: fileURL, options: options)
+            }, completionHandler: { success, error in
+                if !success {
+                    print("AVCam couldn't save the movie to your photo library: \(String(describing: error))")
+                }
+                
+            })
+        }
+        
+        clean()
+    }
+    
+    //MARK: - Init
     static let shared = CameraManager()
     
     private override init() {
@@ -481,72 +552,34 @@ public final class CameraManager: NSObject, ObservableObject {
     }
 }
 
+
 extension CameraManager: AVCapturePhotoCaptureDelegate {
-    
     public func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        guard let photoData = photo.fileDataRepresentation() else { return }
+        guard let data = photo.fileDataRepresentation() else { return }
+        capturedPhotoData = data
+        
+        delegate?.processingOutputDidFinish(success: true)
         stopSession()
-        
-        requestPhotoLibraryAuthorization()
-        
-        guard isPhotoLibraryAccessGranted else {
-            return
-        }
-        
-        PHPhotoLibrary.shared().performChanges({
-            let options = PHAssetResourceCreationOptions()
-            let creationRequest = PHAssetCreationRequest.forAsset()
-            creationRequest.addResource(with: .photo, data: photoData, options: options)
-        }, completionHandler: { success, error in
-            if !success {
-                print("AVCam couldn't save the movie to your photo library: \(String(describing: error))")
-            }
-        })
     }
 }
 
 
 //MARK: - Video recording output handeling
 extension CameraManager: AVCaptureFileOutputRecordingDelegate {
-    private func clean(movie path: String) {
-        guard FileManager.default.fileExists(atPath: path) else {
-            return
-        }
-        
-        try? FileManager.default.removeItem(atPath: path)
-    }
-    
     public func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
-        print("Started recording")
+        isRecording = true
     }
     
     public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         guard error == nil else {
+            isRecording = false
             print("Movie file finishing error: \(String(describing: error))")
             return
         }
         
-        hasFinishedProccessing = true
-        recordedVideoPath = outputFileURL
-        
-        requestPhotoLibraryAuthorization()
-        
-        guard isPhotoLibraryAccessGranted else {
-            clean(movie: outputFileURL.absoluteString)
-            return
-        }
-        
-        PHPhotoLibrary.shared().performChanges({
-            let options = PHAssetResourceCreationOptions()
-            options.shouldMoveFile = true
-            let creationRequest = PHAssetCreationRequest.forAsset()
-            creationRequest.addResource(with: .video, fileURL: outputFileURL, options: options)
-        }, completionHandler: { success, error in
-            if !success {
-                print("AVCam couldn't save the movie to your photo library: \(String(describing: error))")
-            }
-            self.clean(movie: outputFileURL.absoluteString)
-        })
-        
+        capturedVideoURL = outputFileURL
+        isRecording = false
+        delegate?.processingOutputDidFinish(success: true)
+        stopSession()
     }
 }
