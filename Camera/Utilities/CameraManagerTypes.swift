@@ -7,14 +7,17 @@
 
 import Foundation
 
-public enum CaptureMode {
-    case photo
-    case video
-}
-
 public enum cameraManagerError: Error {
     case noCameraFound
     case noMicrophoneFound
+    case failedToOutputVideo
+    case cannotSavePhotoToPhotoLibrary(error: Error)
+    case cannotSaveMovieToPhotoLibrary(error: Error)
+    case cannotAddVideoInputToCaptureSession
+    case cannotAddAudioInputToCaptureSession
+    case cannotAddOutputToCaptureSession
+    case captureSessionConfigurationField(error: Error)
+    case unknownCameraPosition
 }
 
 public enum SessionStatus {
