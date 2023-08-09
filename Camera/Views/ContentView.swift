@@ -10,7 +10,6 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var cameraManagerViewModel: CameraManagerViewModel
     @State private var isIndicatorVisible = false
-    @State private var currentScale: CGFloat = 0.0
     @State private var indicatorPoint: CGPoint = .zero {
         didSet {
             print(indicatorPoint.x)
@@ -24,40 +23,67 @@ struct ContentView: View {
     @State private var test: Bool = false
     
     var body: some View {
-        switch cameraManagerViewModel.preview {
-        case .movie, .photo:
+        switch cameraManagerViewModel.appState {
+        case .photoPreviewMode, .moviePreviewMode:
             ZStack{
-                if let url = cameraManagerViewModel.capturedMovieURL, cameraManagerViewModel.preview == .movie {
+                if let url = cameraManagerViewModel.capturedMovieURL, cameraManagerViewModel.appState == .moviePreviewMode {
                     CustomVideoPlayer(movie: url)
-                } else if let data = cameraManagerViewModel.capturedPhotoData, let uiImage = UIImage(data: data), cameraManagerViewModel.preview == .photo {
+                        .cornerRadius(30)
+                } else if let data = cameraManagerViewModel.capturedPhotoData, let uiImage = UIImage(data: data), cameraManagerViewModel.appState == .photoPreviewMode {
                     Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
+                        .resizable(resizingMode: .stretch)
+                        .cornerRadius(30)
                 } else {
-                    EmptyView() //Something went wrong
+                    EmptyView() //Something went horribly wrong
                 }
             }
             .overlay(content: {
                 VStack{
                     Spacer()
                     HStack{
-                        Spacer()
-                        Button("Save") {
+                        Button(action: {
                             cameraManagerViewModel.save()
                             cameraManagerViewModel.discard()
-                        }
+                        }, label: {
+                            HStack{
+                                Text("Save")
+                                Image(systemName: "arrow.down")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.caption)
+                            .foregroundColor(.black)
+                            .padding()
+                            .background {
+                                RoundedRectangle(cornerRadius: 30)
+                                    .fill(.white)
+                            }
+                        })
                         Spacer()
-                        Button("Retake") {
+                        Button(action: {
                             cameraManagerViewModel.discard()
-                        }
-                        Spacer()
+                        }, label: {
+                            HStack{
+                                Text("Discard")
+                                Image(systemName: "arrow.uturn.backward")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.caption)
+                            .foregroundColor(.black)
+                            .padding()
+                            .background {
+                                RoundedRectangle(cornerRadius: 30)
+                                    .fill(.white)
+                            }
+                        })
                     }
+                    .padding()
                 }
             })
-        case .undefined:
+        case .captureMode:
             ZStack{
                 GeometryReader { g in
                     CameraPreview()
+                        .cornerRadius(30)
                         .gesture(
                             MagnificationGesture()
                                 .onChanged{ scale in
@@ -65,86 +91,21 @@ struct ContentView: View {
                                     if scale < 1.0 { cameraManagerViewModel.zoomOut() }
                                 }
                         )
+                        .onTapGesture(count: 2) {
+                            cameraManagerViewModel.flipCamera()
+                        }
                         .onTapGesture { l in
                             let point = CGPoint(x: l.x / g.size.width, y: l.y / g.size.height)
                             indicatorPoint = point
                             cameraManagerViewModel.focusAndExpose(at: point)
                         }
-                        .cornerRadius(30)
-                        .onTapGesture(count: 2) {
-                            cameraManagerViewModel.flipCamera()
-                        }
-                        /*.overlay(content: {
-                            VStack{
-                                Spacer()
-                                Button(action: {
-                                    cameraManagerViewModel.resetZoom()
-                                }, label: {
-                                    ZStack{
-                                        Circle()
-                                            .stroke(lineWidth: 1)
-                                            .fill(Color.white)
-                                            .frame(width: 35, height: 35)
-                                        Text(String(format: "%0.1f", cameraManagerViewModel.zoomFactor))
-                                            .font(.caption)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(.white)
-                                    }
-                                })
-                                .padding(.bottom)
-                                ZStack{
-                                    VStack{
-                                        HStack{
-                                            Spacer()
-                                            Button(action: {
-        //                                        cameraManager.toogleFlashAndTorch()
-                                            }, label: {
-                                                Image("flash.off") //cameraManager.isTorchActivated ? "flash" :
-                                                    .padding(.top, 5)
-                                            })
-                                            Spacer()
-                                            Button(action: {
-                                                // ignore
-                                            }) {
-                                                Circle()
-                                                    .stroke(lineWidth: 7)
-                                                    .frame(width: 75, height: 75)
-                                            }
-                                            .simultaneousGesture(
-                                                LongPressGesture()
-                                                    .onEnded { _ in
-                                                        print("Recording")
-                                                        cameraManagerViewModel.startRecording()
-                                                    }
-                                            )
-                                            .simultaneousGesture(TapGesture().onEnded {
-                                                switch cameraManagerViewModel.isRecording {
-                                                case true:
-                                                    cameraManagerViewModel.stopRecording()
-                                                case false:
-                                                    cameraManagerViewModel.takePicture()
-                                                }
-                                            })
-                                            Spacer()
-                                            Button(action: {
-                                                cameraManagerViewModel.flipCamera()
-                                            }, label: {
-                                                Image("flip.camera")
-                                            })
-                                            Spacer()
-                                        }
-                                    }
-                                    .padding(.vertical)
-                                    .background(.ultraThinMaterial)
-                                    .cornerRadius(30)
-                                }
-                            }
-                        })*/
                         .overlay(content: {
                             CameraOveraly(vm: cameraManagerViewModel)
                         })
                 }
+                
                 //Tap indicator
+                //TODO: - It does not work?! Always shows at the same point
                 Circle()
                     .position(indicatorPoint)
                     .frame(width: 40, height: 40)

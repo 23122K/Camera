@@ -10,13 +10,13 @@ import SwiftUI
 class CameraManagerViewModel: ObservableObject {
     private var cameraManager: CameraManager
     
-    public enum PreviewType {
-        case undefined
-        case photo
-        case movie
+    public enum AppState {
+        case captureMode
+        case photoPreviewMode
+        case moviePreviewMode
     }
     
-    @Published var preview: PreviewType = .undefined
+    @Published var appState: AppState = .captureMode
     @Published var isPhotoLibraryAccessGranted = true
     @Published var isMicrophoneAccessGranted = true
     @Published var isCameraAccessGranted = true
@@ -25,18 +25,23 @@ class CameraManagerViewModel: ObservableObject {
     @Published var capturedPhotoData: Data?
     @Published var capturedMovieURL: URL?
     
-    
     @Published var hasFinishedProccessingOutput = false
     @Published var isTorchActivated = false
     @Published var isFlashActivated = false
     
     @Published var zoomFactor: Double = 1.0
     
-    func save() { cameraManager.saveCapturedResource() }
+    //Saves captured resource to user photo library
+    func save() {
+        cameraManager.saveCapturedResource()
+    }
+    
+    //After photo/movie has been taken session is stopped, thus below function resumes it and changed appState back to capture
     func discard() {
-        preview = .undefined
+        appState = .captureMode
         cameraManager.startSession()
     }
+    
     
     func zoomIn() { cameraManager.zoom(.zoomIn) }
     func zoomOut() { cameraManager.zoom(.zoomOut) }
@@ -44,6 +49,10 @@ class CameraManagerViewModel: ObservableObject {
     
     func focusAndExpose(at point: CGPoint) {
         cameraManager.focusAndExposure(at: point)
+    }
+    
+    func toogleTorch() {
+        cameraManager.toogleFlashAndTorch()
     }
     
     func flipCamera() {
@@ -79,8 +88,9 @@ extension CameraManagerViewModel: CameraManagerControllsDelegate, CameraManagerO
             return
         }
         
-        preview = .photo
+        appState = .photoPreviewMode
         capturedPhotoData = data
+        cameraManager.stopSession()
     }
     
     func movieOutputDidFinish(with output: URL?) {
@@ -90,8 +100,9 @@ extension CameraManagerViewModel: CameraManagerControllsDelegate, CameraManagerO
             return
         }
         
-        preview = .movie
+        appState = .moviePreviewMode
         capturedMovieURL = url
+        cameraManager.stopSession()
     }
     
     func movieOutputDidStart(_ flag: Bool) {
@@ -101,11 +112,18 @@ extension CameraManagerViewModel: CameraManagerControllsDelegate, CameraManagerO
     func photoLibraryAccessDidChange(granted: Bool) {
         isPhotoLibraryAccessGranted = granted
     }
+    
     func microphoneAccessDidChange(granted: Bool) {
-        isMicrophoneAccessGranted = granted
+        DispatchQueue.main.async {
+            self.isMicrophoneAccessGranted = granted
+        }
     }
+    
+    
     func cameraAccessDidChange(granted: Bool) {
-        isCameraAccessGranted = granted
+        DispatchQueue.main.async {
+            self.isCameraAccessGranted = granted
+        }
     }
     
     func torchDidChangeActivation(to active: Bool) {

@@ -550,7 +550,6 @@ extension CameraManager: AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecor
         capturedPhotoData = data
         
         outputDelegate?.photoOutputDidFinish(with: data)
-        stopSession()
     }
     
     //Movie is outputed as a path to file
@@ -566,6 +565,5 @@ extension CameraManager: AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecor
         
         capturedVideoURL = outputFileURL
         outputDelegate?.movieOutputDidFinish(with: outputFileURL)
-        stopSession()
     }
 }

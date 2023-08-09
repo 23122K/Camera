@@ -14,34 +14,52 @@ struct CameraOveraly: View {
             HStack{
                 Spacer()
                 VStack{
-                    Image("flash")
-                        .scaleEffect(0.6)
-                        .padding(.top)
-                        .padding(.bottom)
-                    Image("flip.camera")
-                        .scaleEffect(0.6)
-                        .padding(.bottom)
+                    Button(action: {
+                        vm.toogleTorch()
+                    }, label: {
+                        Image("flash")
+                            .scaleEffect(0.9)
+                            .padding(.bottom)
+                    })
+                    Button(action: {
+                        vm.flipCamera()
+                    }, label: {
+                        Image("flip.camera")
+                            .scaleEffect(0.9)
+                            .padding(.bottom)
+                    })
                 }
                 .padding(10)
-                .background(.ultraThinMaterial)
+                .shadow(radius: 2)
                 .cornerRadius(15)
             }
             .padding()
             Spacer()
+            Button(action: {
+                vm.resetZoom()
+            }, label: {
+                ZStack{
+                    Circle()
+                        .stroke(lineWidth: 1)
+                        .fill(Color.white)
+                        .frame(width: 35, height: 35)
+                    Text(String(format: "%.1f", vm.zoomFactor))
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                }
+            })
+            .padding(.bottom)
+            
             HStack{
                 Button(action: {
                     // ignore
                 }) {
                     Circle()
-                        .stroke(lineWidth: 7)
+                        .stroke((vm.isRecording ? .red.opacity(0.5) : .white), lineWidth: 7)
+                        .shadow(radius: 2)
                         .frame(width: 75, height: 75)
                 }
-                .simultaneousGesture(
-                    DragGesture()
-                        .onChanged { scale in
-                            print(scale.)
-                        }
-                )
                 .simultaneousGesture(
                     LongPressGesture()
                         .onEnded { _ in
