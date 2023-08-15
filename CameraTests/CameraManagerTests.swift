@@ -10,7 +10,7 @@ import XCTest
 final class CameraTests: XCTestCase {
     
     func testCameraManagerDefaultSettings() {
-        //Dunno how to write good tests yet
+        //Dunno how to write good tests yet 
     }
 
 }

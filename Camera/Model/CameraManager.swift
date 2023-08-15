@@ -34,6 +34,11 @@ public final class CameraManager: NSObject {
         case resetZoom
     }
     
+    internal enum CaptureMovieMode {
+        case normal
+        case continuous
+    }
+    
     //Helper type used to manage saving/cleaning captured data
     private enum CaptureMode {
         case photo
@@ -98,15 +103,20 @@ public final class CameraManager: NSObject {
         }
     }
     
+    //TODO: - When user switches camera from e.g back to front, recording is not discarded but combined together if below property is set to true
+    private var captureMovieMode: CaptureMovieMode = .continuous
+    
     private var capturedPhotoData: Data?
     private var capturedVideoURL: URL?
+    private var capturedVideoURLS: Array<URL> = Array()
     
     private let captureSessionQueue = DispatchQueue(label: "capture.session")
     
-    //Returns URL to which captured movie is saved
+    //Returns unique URL every time its called
     private var movieURL: URL {
+        let id = UUID().uuidString
         let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsDirectory.appending(component: "tmp_movie_file.mov")
+        return documentsDirectory.appending(component: "rec_\(id).mov")
     }
     
     //MARK: - Dependencies
@@ -280,9 +290,8 @@ public final class CameraManager: NSObject {
     }
     
     func startSession() {
-        //Gotta check if everything was set up correctly
         captureSessionQueue.async {
-            self.captureSession.startRunning()
+            if !self.captureSession.isRunning { self.captureSession.startRunning() }
         }
     }
     
@@ -517,11 +526,64 @@ public final class CameraManager: NSObject {
         clean()
     }
     
+    //MARK: Capture Session Notifications
+    func startObserving() {
+        //App enters background
+        NotificationCenter.default.addObserver(self, selector: #selector(sessionHasEnded), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        
+        //App enters foreground
+        NotificationCenter.default.addObserver(self, selector: #selector(sessionHasStarted), name: UIApplication.willEnterForegroundNotification, object: nil)
+        
+        //CaptureSession has been interrupted due to call/facetime/music being played/system pressure etc...
+        NotificationCenter.default.addObserver(self, selector: #selector(sessionWasInterrupted), name: .AVCaptureSessionWasInterrupted, object: captureSession)
+        
+        //CaptreSession interruption has been ended
+        NotificationCenter.default.addObserver(self, selector: #selector(sessionInterruptEnded), name: .AVCaptureSessionInterruptionEnded, object: captureSession)
+    }
+    
+    @objc func sessionWasInterrupted(notification: NSNotification) {
+        guard let userInfoValue = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as AnyObject?,
+              let reasonIntegerValue = userInfoValue.integerValue,
+              let interruptReason = AVCaptureSession.InterruptionReason(rawValue: reasonIntegerValue) else {
+            return
+        }
+        
+        switch interruptReason {
+        case .audioDeviceInUseByAnotherClient:
+            print("Audio is used by other device")
+        case .videoDeviceInUseByAnotherClient:
+            print("Video is used by other device")
+        case .videoDeviceNotAvailableInBackground:
+            //Dont believe that can be the interrput couse in iOS tho, seems more like ipod or mac issue, or when straming maybe
+            print("App is in background mode")
+        case .videoDeviceNotAvailableDueToSystemPressure:
+            print("System pressure issue")
+        case .videoDeviceNotAvailableWithMultipleForegroundApps:
+            print("ipadOS couse not ios")
+        @unknown default:
+            print("Unknwon couse")
+        }
+    }
+    
+    @objc func sessionInterruptEnded() {
+        print("interruption has ended")
+    }
+    
+    @objc func sessionHasStarted() {
+        print("Session has been resumed")
+    }
+    
+    //When user closes
+    @objc func sessionHasEnded() {
+        print("Session has been susspended")
+    }
+    
     //MARK: - Init
     static let shared = CameraManager()
     
     private override init() {
         super.init()
+        startObserving()
         
         captureSessionQueue.async {
             self.requestCameraAuthorization()
@@ -557,13 +619,81 @@ extension CameraManager: AVCapturePhotoCaptureDelegate, AVCaptureFileOutputRecor
         outputDelegate?.movieOutputDidStart(true)
     }
     
-    public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        guard error == nil else {
-            outputDelegate?.movieOutputDidFinish(with: nil)
-            return
+    func mergeVideos(handler: @escaping (_ asset: AVAssetExportSession)->()) {
+        var recordings = capturedVideoURLS.compactMap{ url -> AVURLAsset in
+            return AVURLAsset(url: url)
         }
         
-        capturedVideoURL = outputFileURL
-        outputDelegate?.movieOutputDidFinish(with: outputFileURL)
+        //This is subject to change
+        recordings.append(AVURLAsset(url: capturedVideoURL!))
+        
+        let videoComposition = AVMutableComposition()
+        var lastTime: CMTime = .zero
+        
+        guard let videoCompositionTrack = videoComposition.addMutableTrack(withMediaType: .video, preferredTrackID: Int32(kCMPersistentTrackID_Invalid)) else { return }
+        guard let audioCompositionTrack = videoComposition.addMutableTrack(withMediaType: .audio, preferredTrackID: Int32(kCMPersistentTrackID_Invalid)) else { return }
+        
+        for video in recordings {
+            //add audio/video
+            do {
+                try videoCompositionTrack.insertTimeRange(CMTimeRangeMake(start: .zero, duration: video.duration), of: video.tracks(withMediaType: .video)[0], at: lastTime)
+                try audioCompositionTrack.insertTimeRange(CMTimeRangeMake(start: .zero, duration: video.duration), of: video.tracks(withMediaType: .audio)[0], at: lastTime)
+                
+            } catch {
+                print("Failed to insert audio or video track")
+                return
+            }
+            
+            lastTime = CMTimeAdd(lastTime, video.duration)
+        }
+        
+        guard let exporter = AVAssetExportSession(asset: videoComposition, presetName: AVAssetExportPresetHighestQuality) else { return }
+        exporter.outputURL = movieURL
+        exporter.outputFileType = .mov
+        handler(exporter)
+    }
+    
+    public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        switch captureMovieMode {
+        case .normal:
+            guard error == nil else {
+                outputDelegate?.movieOutputDidFinish(with: nil)
+                return
+            }
+            
+            capturedVideoURL = outputFileURL
+            outputDelegate?.movieOutputDidFinish(with: capturedVideoURL)
+        case .continuous:
+            //TODO: Check error codes/domains/etc for AVFoundation to check only for error when toggling between cameras
+            if let error = error as? NSError, error.domain == AVFoundationErrorDomain && error.code == -11818 {
+                capturedVideoURLS.append(outputFileURL)
+                startRecording()
+                return
+            }
+            
+            //Check for other errors
+            
+            //
+            capturedVideoURL = outputFileURL
+            
+            guard capturedVideoURLS.count == 0 else {
+                mergeVideos(handler: { exporter in
+                    exporter.exportAsynchronously {
+                        guard exporter.status == .completed, let mergedMovieURL = exporter.outputURL else {
+                            self.outputDelegate?.movieOutputDidFinish(with: nil)
+                            return
+                        }
+                        
+                        DispatchQueue.main.async {
+                            self.outputDelegate?.movieOutputDidFinish(with: mergedMovieURL)
+                        }
+                    }
+                })
+                
+                return
+            }
+            
+            self.outputDelegate?.movieOutputDidFinish(with: capturedVideoURL)
+        }
     }
 }
